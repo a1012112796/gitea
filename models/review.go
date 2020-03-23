@@ -27,17 +27,21 @@ const (
 	ReviewTypeComment
 	// ReviewTypeReject gives feedback blocking merge
 	ReviewTypeReject
+	// ReviewTypeRequest request review from others
+	ReviewTypeRequest
 )
 
 // Icon returns the corresponding icon for the review type
 func (rt ReviewType) Icon() string {
 	switch rt {
 	case ReviewTypeApprove:
-		return "eye"
+		return "check"
 	case ReviewTypeReject:
-		return "x"
-	case ReviewTypeComment, ReviewTypeUnknown:
+		return "request-changes"
+	case ReviewTypeComment:
 		return "comment"
+	case ReviewTypeRequest:
+		return "primitive-dot"
 	default:
 		return "comment"
 	}
@@ -355,8 +359,8 @@ func GetReviewersByIssueID(issueID int64) (reviews []*Review, err error) {
 	}
 
 	// Get latest review of each reviwer, sorted in order they were made
-	if err := sess.SQL("SELECT * FROM review WHERE id IN (SELECT max(id) as id FROM review WHERE issue_id = ? AND type in (?, ?) GROUP BY issue_id, reviewer_id) ORDER BY review.updated_unix ASC",
-		issueID, ReviewTypeApprove, ReviewTypeReject).
+	if err := sess.SQL("SELECT * FROM review WHERE id IN (SELECT max(id) as id FROM review WHERE issue_id = ? AND type in (?, ?, ?) GROUP BY issue_id, reviewer_id) ORDER BY review.updated_unix ASC",
+		issueID, ReviewTypeApprove, ReviewTypeReject, ReviewTypeRequest).
 		Find(&reviewsUnfiltered); err != nil {
 		return nil, err
 	}
@@ -373,4 +377,117 @@ func GetReviewersByIssueID(issueID int64) (reviews []*Review, err error) {
 	}
 
 	return reviews, nil
+}
+
+// AddRewiewRequest add a review request from one reviewer
+func AddRewiewRequest(issue *Issue, reviewer *User, doer *User) (comment *Comment, err error) {
+	reviews, err := GetReviewersByIssueID(issue.ID)
+	if err != nil {
+		return
+	}
+
+	var get *Review
+	for _, rev := range reviews {
+		if rev.ReviewerID == reviewer.ID {
+			get = rev
+			break
+		}
+	}
+
+	// skip it when reviewer hase been request to review
+	if get != nil && get.Type == ReviewTypeRequest {
+		return nil, nil
+	}
+
+	sess := x.NewSession()
+	defer sess.Close()
+	if err := sess.Begin(); err != nil {
+		return nil, err
+	}
+
+	var official bool
+	official, err = isOfficialReviewer(sess, issue, reviewer)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if !official {
+		official, err = isOfficialReviewer(sess, issue, doer)
+
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if official {
+		if _, err := sess.Exec("UPDATE `review` SET official=? WHERE issue_id=? AND reviewer_id=?", false, issue.ID, reviewer.ID); err != nil {
+			return nil, err
+		}
+	}
+
+	_, err = createReview(sess, CreateReviewOptions{
+		Type:     ReviewTypeRequest,
+		Issue:    issue,
+		Reviewer: reviewer,
+		Official: official,
+	})
+
+	if err != nil {
+		return
+	}
+
+	comment, err = createComment(sess, &CreateCommentOptions{
+		Type:            CommentTypeReviewRequest,
+		Doer:            doer,
+		Repo:            issue.Repo,
+		Issue:           issue,
+		RemovedAssignee: false,       // Use RemovedAssignee as !isRequest
+		AssigneeID:      reviewer.ID, // Use AssigneeID as reviewer ID
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return comment, sess.Commit()
+}
+
+//RemoveRewiewRequest remove a review request from one reviewer
+func RemoveRewiewRequest(issue *Issue, reviewer *User, doer *User) (comment *Comment, err error) {
+	reviews, err := GetReviewersByIssueID(issue.ID)
+	if err != nil {
+		return
+	}
+
+	var get *Review
+	for _, rev := range reviews {
+		if rev.ReviewerID == reviewer.ID {
+			get = rev
+			break
+		}
+	}
+
+	if get != nil && get.Type == ReviewTypeRequest {
+		_, err = x.Delete(get)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	comment, err = CreateComment(&CreateCommentOptions{
+		Type:            CommentTypeReviewRequest,
+		Doer:            doer,
+		Repo:            issue.Repo,
+		Issue:           issue,
+		RemovedAssignee: true,        // Use RemovedAssignee as !isRequest
+		AssigneeID:      reviewer.ID, // Use AssigneeID as reviewer ID
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return
 }

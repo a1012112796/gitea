@@ -117,7 +117,7 @@ function initBranchSelector() {
   });
 }
 
-function updateIssuesMeta(url, action, issueIds, elementId) {
+function updateIssuesMeta(url, action, issueIds, elementId, isAdd) {
   return new Promise(((resolve) => {
     $.ajax({
       type: 'POST',
@@ -126,7 +126,8 @@ function updateIssuesMeta(url, action, issueIds, elementId) {
         _csrf: csrf,
         action,
         issue_ids: issueIds,
-        id: elementId
+        id: elementId,
+        is_add: isAdd
       },
       success: resolve
     });
@@ -353,7 +354,8 @@ function initCommentForm() {
             label['update-url'],
             label.action,
             label['issue-id'],
-            elementId
+            elementId,
+            label['is-checked']
           );
           promises.push(promise);
         });
@@ -363,22 +365,25 @@ function initCommentForm() {
 
     $listMenu.find('.item:not(.no-select)').click(function () {
       // we don't need the action attribute when updating assignees
-      if (selector === 'select-assignees-modify') {
+      if (selector === 'select-assignees-modify' || selector === 'select-reviewers-modify') {
         // UI magic. We need to do this here, otherwise it would destroy the functionality of
         // adding/removing labels
         if ($(this).hasClass('checked')) {
           $(this).removeClass('checked');
           $(this).find('.octicon').removeClass('octicon-check');
+          $(this).data('is-checked', 'remove');
         } else {
           $(this).addClass('checked');
           $(this).find('.octicon').addClass('octicon-check');
+          $(this).data('is-checked', 'add');
         }
 
         updateIssuesMeta(
           $listMenu.data('update-url'),
           '',
           $listMenu.data('issue-id'),
-          $(this).data('id')
+          $(this).data('id'),
+          $(this).data('is-checked')
         );
         $listMenu.data('action', 'update'); // Update to reload the page when we updated items
         return false;
@@ -437,6 +442,7 @@ function initCommentForm() {
           $listMenu.data('update-url'),
           'clear',
           $listMenu.data('issue-id'),
+          '',
           ''
         ).then(reload);
       }
@@ -444,6 +450,7 @@ function initCommentForm() {
       $(this).parent().find('.item').each(function () {
         $(this).removeClass('checked');
         $(this).find('.octicon').removeClass('octicon-check');
+        $(this).data('is-checked', 'remove');
       });
 
       $list.find('.item').each(function () {
@@ -458,6 +465,7 @@ function initCommentForm() {
   initListSubmits('select-label', 'labels');
   initListSubmits('select-assignees', 'assignees');
   initListSubmits('select-assignees-modify', 'assignees');
+  initListSubmits('select-reviewers-modify', 'assignees');
 
   function selectItem(select_id, input_id) {
     const $menu = $(`${select_id} .menu`);
@@ -475,7 +483,8 @@ function initCommentForm() {
           $menu.data('update-url'),
           '',
           $menu.data('issue-id'),
-          $(this).data('id')
+          $(this).data('id'),
+          $(this).data('is-checked')
         ).then(reload);
       }
       switch (input_id) {
@@ -501,7 +510,8 @@ function initCommentForm() {
           $menu.data('update-url'),
           '',
           $menu.data('issue-id'),
-          $(this).data('id')
+          $(this).data('id'),
+          $(this).data('is-checked')
         ).then(reload);
       }
 
@@ -610,6 +620,18 @@ function initInstall() {
 
 function initIssueComments() {
   if ($('.repository.view.issue .comments').length === 0) return;
+
+  $('.re-request-review').click((event) => {
+    const $this = $('.re-request-review');
+    event.preventDefault();
+    updateIssuesMeta(
+      $this.data('update-url'),
+      '',
+      $this.data('issue-id'),
+      $this.data('id'),
+      'add'
+    ).then(reload);
+  });
 
   $(document).click((event) => {
     const urlTarget = $(':target');

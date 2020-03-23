@@ -872,7 +872,7 @@ func ViewIssue(ctx *context.Context) {
 			if comment.MilestoneID > 0 && comment.Milestone == nil {
 				comment.Milestone = ghostMilestone
 			}
-		} else if comment.Type == models.CommentTypeAssignees {
+		} else if comment.Type == models.CommentTypeAssignees || comment.Type == models.CommentTypeReviewRequest {
 			if err = comment.LoadAssigneeUser(); err != nil {
 				ctx.ServerError("LoadAssigneeUser", err)
 				return
@@ -1196,6 +1196,69 @@ func UpdateIssueAssignee(ctx *context.Context) {
 	ctx.JSON(200, map[string]interface{}{
 		"ok": true,
 	})
+}
+
+// updatePullReviewRequest change pull's request reviewers
+func updatePullReviewRequest(ctx *context.Context, isReRequest bool) {
+	issues := getActionIssues(ctx)
+	if ctx.Written() {
+		return
+	}
+
+	reviewID := ctx.QueryInt64("id")
+	event := ctx.Query("is_add")
+
+	if event != "add" && event != "remove" {
+		ctx.ServerError("updatePullReviewRequest", fmt.Errorf("is_add should not be \"%s\"", event))
+		return
+	}
+
+	for _, issue := range issues {
+		if issue.IsPull {
+
+			if isReRequest && issue.PosterID != ctx.User.ID {
+				ctx.ServerError("updatePullReviewRequest", fmt.Errorf("%d is not poster of %d PR", ctx.User.ID, issue.ID))
+			}
+
+			reviewer, err := models.GetUserByID(reviewID)
+			if err != nil {
+				ctx.ServerError("GetUserByID", err)
+				return
+			}
+
+			valid, err := models.CanBeAssigned(reviewer, issue.Repo, issue.IsPull)
+			if err != nil {
+				ctx.ServerError("canBeAssigned", err)
+				return
+			}
+			if !valid {
+				ctx.ServerError("canBeAssigned", models.ErrUserDoesNotHaveAccessToRepo{UserID: reviewID, RepoName: issue.Repo.Name})
+				return
+			}
+
+			err = issue_service.ToggleReviewRequest(issue, ctx.User, reviewer, event == "add")
+			if err != nil {
+				ctx.ServerError("ToggleReviewRequest", err)
+				return
+			}
+		} else {
+			ctx.ServerError("updatePullReviewRequest", fmt.Errorf("%d in %d is not Pull Request", issue.ID, issue.Repo.ID))
+		}
+	}
+
+	ctx.JSON(200, map[string]interface{}{
+		"ok": true,
+	})
+}
+
+// UpdatePullReviewRequest add or remove review request
+func UpdatePullReviewRequest(ctx *context.Context) {
+	updatePullReviewRequest(ctx, false)
+}
+
+// UpdatePullReviewReRequest request to review again by author
+func UpdatePullReviewReRequest(ctx *context.Context) {
+	updatePullReviewRequest(ctx, true)
 }
 
 // UpdateIssueStatus change issue's status

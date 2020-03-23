@@ -8,9 +8,15 @@
 					<div class="ui divider"></div>
 					<div class="review-item">
 						<span class="type-icon text {{if eq .Type 1}}green
-							{{else if eq .Type 2}}grey
-							{{else if eq .Type 3}}red
+							{{- else if eq .Type 2}}grey
+							{{- else if eq .Type 3}}red
+							{{- else if eq .Type 4}}yellow
 							{{else}}grey{{end}}">
+							{{if and $.IsIssuePoster (not ( eq .Type 4)) }}
+								<a href="#" class="ui poping up icon re-request-review"  data-content="{{$.i18n.Tr "repo.issues.re_request_review"}}" data-issue-id="{{$.Issue.ID}}"  data-id="{{.ReviewerID}}" data-update-url="{{$.RepoLink}}/issues/re_request_review">
+									<span class="octicon octicon-sync"></span>
+								</a>
+							{{end}}
 							<span class="octicon octicon-{{.Type.Icon}}"></span>
 						</span>
 						<a class="ui avatar image" href="{{.Reviewer.HomeLink}}">
@@ -23,6 +29,8 @@
 								{{$.i18n.Tr "repo.issues.review.comment" $createdStr | Safe}}
 							{{else if eq .Type 3}}
 								{{$.i18n.Tr "repo.issues.review.reject" $createdStr | Safe}}
+							{{else if eq .Type 4}}
+								{{$.i18n.Tr "repo.issues.review.wait" $createdStr | Safe}}
 							{{else}}
 								{{$.i18n.Tr "repo.issues.review.comment" $createdStr | Safe}}
 							{{end}}
