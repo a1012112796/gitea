@@ -631,36 +631,46 @@ func apiReviewRequest(ctx *context.APIContext, opts api.PullReviewRequestOptions
 		return
 	}
 
-	var reviews []*models.Review
+	reviews := make([]*models.Review, 0, len(opts.Reviewers))
+	users := make([]*models.User, 0, len(opts.Reviewers))
 	hasResult := false
 
-	for _, r := range opts.Reviewers {
-		var reviewer *models.User
-		if strings.Contains(r, "@") {
-			reviewer, err = models.GetUserByEmail(r)
+	for i := range opts.Reviewers {
+		var user *models.User
+		if strings.Contains(opts.Reviewers[i], "@") {
+			user, err = models.GetUserByEmail(opts.Reviewers[i])
 		} else {
-			reviewer, err = models.GetUserByName(r)
+			user, err = models.GetUserByName(opts.Reviewers[i])
+		}
+		if err != nil {
+			if models.IsErrUserNotExist(err) {
+				ctx.Error(http.StatusNotFound, "UserNotExist", fmt.Sprintf("User '%s' not exist", opts.Reviewers[i]))
+				return
+			}
+			ctx.Error(http.StatusInternalServerError, "GetUser", fmt.Sprintf("GetUser: %v", err))
+			return
+		}
+		users = append(users, user)
+
+		err = issue_service.IsLegalReviewRequest(user, ctx.User, isAdd, pr.Issue)
+		if err != nil {
+			ctx.Error(http.StatusForbidden, "IllegalReviewRequest", err)
+			return
 		}
 
-		if err != nil {
-			continue
-		}
+	}
 
-		err = issue_service.IsLegalReviewRequest(reviewer, ctx.User, isAdd, pr.Issue)
+	for i := range users {
+		comment, err := issue_service.ReviewRequest(pr.Issue, ctx.User, users[i], isAdd)
 		if err != nil {
-			continue
-		}
-
-		comment, err := issue_service.ReviewRequest(pr.Issue, ctx.User, reviewer, isAdd)
-		if err != nil {
-			ctx.ServerError("ReviewRequest", err)
+			ctx.Error(http.StatusInternalServerError, "ReviewRequest", err)
 			return
 		}
 
 		if comment != nil {
 			if isAdd {
 				if err = comment.LoadReview(); err != nil {
-					ctx.ServerError("ReviewRequest", err)
+					ctx.Error(http.StatusInternalServerError, "ReviewRequest", err)
 					return
 				}
 				reviews = append(reviews, comment.Review)
