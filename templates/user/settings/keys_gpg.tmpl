@@ -59,7 +59,7 @@
 						</div>
 						<div class="field">
 							<label for="signature">{{$.i18n.Tr "settings.gpg_token_signature"}}</label>
-							<textarea id="gpg-key-signature" name="signature" placeholder="{{$.i18n.Tr "settings.key_signature_gpg_placeholder"}}" required>{{$.signature}}</textarea>
+							<textarea id="gpg-key-signature" name="signature" placeholder="{{$.i18n.Tr "settings.key_signature_gpg_placeholder" "-----BEGIN PGP SIGNATURE-----"}}" required>{{$.signature}}</textarea>
 						</div>
 						<input name="type" type="hidden" value="verify_gpg">
 						<button class="ui green button">
