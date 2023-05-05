@@ -468,17 +468,6 @@ func renderFile(ctx *context.Context, entry *git.TreeEntry, treeLink, rawLink st
 			// to prevent iframe load third-party url
 			ctx.Resp.Header().Add("Content-Security-Policy", "frame-src 'self'")
 		} else {
-			buf, _ := io.ReadAll(rd)
-
-			// empty: 0 lines; "a": one line; "a\n": two lines; "a\nb": two lines;
-			// the NumLines is only used for the display on the UI: "xxx lines"
-			if len(buf) == 0 {
-				ctx.Data["NumLines"] = 0
-			} else {
-				ctx.Data["NumLines"] = bytes.Count(buf, []byte{'\n'}) + 1
-			}
-			ctx.Data["NumLinesSet"] = true
-
 			language := ""
 
 			indexFilename, worktree, deleteTemporaryFile, err := ctx.Repo.GitRepo.ReadTreeToTemporaryIndex(ctx.Repo.CommitID)
@@ -504,11 +493,11 @@ func renderFile(ctx *context.Context, entry *git.TreeEntry, treeLink, rawLink st
 					language = ""
 				}
 			}
-			fileContent, lexerName, err := highlight.File(blob.Name(), language, buf)
+			fileContent, lexerName, err := highlight.File(blob.Name(), language, rd, int(blob.Size()))
 			ctx.Data["LexerName"] = lexerName
 			if err != nil {
 				log.Error("highlight.File failed, fallback to plain text: %v", err)
-				fileContent = highlight.PlainText(buf)
+				fileContent = highlight.PlainText(rd)
 			}
 			status := &charset.EscapeStatus{}
 			statuses := make([]*charset.EscapeStatus, len(fileContent))
@@ -519,6 +508,8 @@ func renderFile(ctx *context.Context, entry *git.TreeEntry, treeLink, rawLink st
 			ctx.Data["EscapeStatus"] = status
 			ctx.Data["FileContent"] = fileContent
 			ctx.Data["LineEscapeStatus"] = statuses
+			ctx.Data["NumLines"] = len(fileContent)
+			ctx.Data["NumLinesSet"] = true
 		}
 		if !fInfo.isLFSFile {
 			if ctx.Repo.CanEnableEditor(ctx.Doer) {

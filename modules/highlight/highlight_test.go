@@ -97,7 +97,7 @@ c=2
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			out, lexerName, err := File(tt.name, "", []byte(tt.code))
+			out, lexerName, err := File(tt.name, "", strings.NewReader(tt.code), len(tt.code))
 			assert.NoError(t, err)
 			expected := strings.Join(tt.want, "\n")
 			actual := strings.Join(out, "\n")
@@ -164,7 +164,7 @@ c=2`),
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			out := PlainText([]byte(tt.code))
+			out := PlainText(strings.NewReader(tt.code))
 			expected := strings.Join(tt.want, "\n")
 			actual := strings.Join(out, "\n")
 			assert.EqualValues(t, expected, actual)

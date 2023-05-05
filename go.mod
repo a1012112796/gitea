@@ -310,3 +310,5 @@ exclude github.com/gofrs/uuid v4.0.0+incompatible
 exclude github.com/goccy/go-json v0.4.11
 
 exclude github.com/satori/go.uuid v1.2.0
+
+replace github.com/alecthomas/chroma/v2 => github.com/a1012112796/chroma/v2 v2.0.0-20230505025209-be27cb215f6e

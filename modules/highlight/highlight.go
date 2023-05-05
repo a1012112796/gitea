@@ -7,6 +7,7 @@ package highlight
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	gohtml "html"
 	"io"
@@ -135,20 +136,43 @@ func CodeFromLexer(lexer chroma.Lexer, code string) string {
 	return strings.TrimSuffix(htmlbuf.String(), "\n")
 }
 
-// File returns a slice of chroma syntax highlighted HTML lines of code and the matched lexer name
-func File(fileName, language string, code []byte) ([]string, string, error) {
-	NewContext()
+// wrapeReader to make sure it can read enough data
+type wrapeReader struct {
+	reader io.Reader
+}
 
-	if len(code) > sizeLimit {
-		return PlainText(code), "", nil
+func (r *wrapeReader) Read(p []byte) (n int, err error) {
+	offset := 0
+
+	for offset < len(p) {
+		len, err := r.reader.Read(p[offset:])
+		if err != nil {
+			return offset, err
+		}
+
+		offset += len
 	}
 
-	formatter := html.New(html.WithClasses(true),
-		html.WithLineNumbers(false),
-		html.PreventSurroundingPre(true),
-	)
+	return offset, nil
+}
+
+// File returns a slice of chroma syntax highlighted HTML lines of code and the matched lexer name
+func File(fileName, language string, codeReader io.Reader, size int) ([]string, string, error) {
+	NewContext()
+
+	if size > sizeLimit {
+		return PlainText(codeReader), "", nil
+	}
+
+	codeReader = &wrapeReader{
+		reader: codeReader,
+	}
 
 	var lexer chroma.Lexer
+	const blockSize = 8 * 1024
+
+	buffer := make([]byte, blockSize)
+	readLen := 0
 
 	// provided language overrides everything
 	if language != "" {
@@ -162,7 +186,13 @@ func File(fileName, language string, code []byte) ([]string, string, error) {
 	}
 
 	if lexer == nil {
-		guessLanguage := analyze.GetCodeLanguage(fileName, code)
+		var err error
+		readLen, err = codeReader.Read(buffer)
+		if err != nil && err != io.EOF {
+			return nil, "", err
+		}
+
+		guessLanguage := analyze.GetCodeLanguage(fileName, buffer[:readLen])
 
 		lexer = lexers.Get(guessLanguage)
 		if lexer == nil {
@@ -173,34 +203,92 @@ func File(fileName, language string, code []byte) ([]string, string, error) {
 		}
 	}
 
-	lexerName := formatLexerName(lexer.Config().Name)
+	if lexer == nil {
+		return nil, "", errors.New("unknow lexer")
+	}
 
-	iterator, err := lexer.Tokenise(nil, string(code))
+	realLexer, ok := lexer.(*chroma.RegexLexer)
+	if !ok {
+		return nil, "", errors.New("unknow lexer")
+	}
+
+	state, err := realLexer.NewLexerStateStream(nil, codeReader, blockSize, size)
 	if err != nil {
-		return nil, "", fmt.Errorf("can't tokenize code: %w", err)
+		return nil, "", err
+	}
+	if readLen > 0 {
+		_ = state.AddPreReadenData(buffer[:readLen])
 	}
 
-	tokensLines := chroma.SplitTokensIntoLines(iterator.Tokens())
 	htmlBuf := &bytes.Buffer{}
+	formatter := html.New(html.WithClasses(true),
+		html.WithLineNumbers(false),
+		html.PreventSurroundingPre(true),
+	)
+	lines := make([]string, 0, 10)
+	lineToken := make([]chroma.Token, 0, 5)
 
-	lines := make([]string, 0, len(tokensLines))
-	for _, tokens := range tokensLines {
-		iterator = chroma.Literator(tokens...)
-		err = formatter.Format(htmlBuf, githubStyles, iterator)
-		if err != nil {
-			return nil, "", fmt.Errorf("can't format code: %w", err)
+	genLines := func(isEnd bool) error {
+		if len(lineToken) == 0 {
+			return nil
 		}
-		lines = append(lines, htmlBuf.String())
+
+		if isEnd && len(lineToken) == 1 && lineToken[0].Value == "" {
+			return nil
+		}
+
 		htmlBuf.Reset()
+		err = formatter.Format(htmlBuf, githubStyles, chroma.Literator(lineToken...))
+		if err != nil {
+			return fmt.Errorf("can't format code: %w", err)
+		}
+
+		lines = append(lines, htmlBuf.String())
+
+		return nil
 	}
+
+	for {
+		token := state.Iterator()
+		if token == chroma.EOF {
+			err = genLines(true)
+			if err != nil {
+				return nil, "", err
+			}
+
+			break
+		}
+
+		for strings.Contains(token.Value, "\n") {
+			parts := strings.SplitAfterN(token.Value, "\n", 2)
+			// Token becomes the tail.
+			token.Value = parts[1]
+
+			// Append the head to the line and flush the line.
+			clone := token.Clone()
+			clone.Value = parts[0]
+			lineToken = append(lineToken, clone)
+
+			err = genLines(false)
+			if err != nil {
+				return nil, "", err
+			}
+
+			lineToken = make([]chroma.Token, 0, 5)
+		}
+
+		lineToken = append(lineToken, token)
+	}
+
+	lexerName := formatLexerName(lexer.Config().Name)
 
 	return lines, lexerName, nil
 }
 
 // PlainText returns non-highlighted HTML for code
-func PlainText(code []byte) []string {
-	r := bufio.NewReader(bytes.NewReader(code))
-	m := make([]string, 0, bytes.Count(code, []byte{'\n'})+1)
+func PlainText(codeReader io.Reader) []string {
+	r := bufio.NewReader(codeReader)
+	m := make([]string, 0, 64)
 	for {
 		content, err := r.ReadString('\n')
 		if err != nil && err != io.EOF {
