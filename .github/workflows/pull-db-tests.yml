@@ -40,8 +40,6 @@ jobs:
       - uses: actions/setup-go@v4
         with:
           go-version: ">=1.20.0"
-      - name: Add hosts to /etc/hosts
-        run: echo "127.0.0.1 pgsql ldap minio" | sudo tee -a /etc/hosts
       - run: make deps-backend
       - run: make backend
         env:
@@ -118,8 +116,6 @@ jobs:
       - uses: actions/setup-go@v4
         with:
           go-version: ">=1.20.0"
-      - name: Add hosts to /etc/hosts
-        run: echo "127.0.0.1 mysql elasticsearch smtpimap" | sudo tee -a /etc/hosts
       - run: make deps-backend
       - run: make backend
         env:
@@ -165,8 +161,6 @@ jobs:
       - uses: actions/setup-go@v4
         with:
           go-version: ">=1.20.0"
-      - name: Add hosts to /etc/hosts
-        run: echo "127.0.0.1 mysql elasticsearch smtpimap" | sudo tee -a /etc/hosts
       - run: make deps-backend
       - run: make backend
         env:
@@ -194,8 +188,6 @@ jobs:
       - uses: actions/setup-go@v4
         with:
           go-version: ">=1.20.0"
-      - name: Add hosts to /etc/hosts
-        run: echo "127.0.0.1 mysql8" | sudo tee -a /etc/hosts
       - run: make deps-backend
       - run: make backend
         env:
@@ -222,8 +214,6 @@ jobs:
       - uses: actions/setup-go@v4
         with:
           go-version: ">=1.20.0"
-      - name: Add hosts to /etc/hosts
-        run: echo "127.0.0.1 mssql" | sudo tee -a /etc/hosts
       - run: make deps-backend
       - run: make backend
         env:
