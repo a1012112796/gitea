@@ -16,6 +16,8 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-go@v4
+        with:
+          go-version: ">=1.20.0"
       - run: make deps-backend
       - run: make backend
         env:
@@ -65,7 +67,7 @@ jobs:
         with:
           name: build-artifact
           path: gitea
-      - run: make test-pgsql-migration test-pgsql
+      - run: make generate test-pgsql-migration test-pgsql
         timeout-minutes: 50
         env:
           TAGS: bindata gogit
