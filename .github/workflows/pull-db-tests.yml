@@ -11,8 +11,25 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v4
+      - run: make deps-backend
+      - run: make backend
+        env:
+          TAGS: bindata
+      - name: cache build result
+        uses: actions/upload-artifact@v3
+        with:
+          name: build-artifact
+          path: gitea
+          retention-days: 1
+
   test-pgsql:
     runs-on: ubuntu-latest
+    needs: build
     services:
       pgsql:
         image: postgres:15
@@ -43,9 +60,11 @@ jobs:
       - name: Add hosts to /etc/hosts
         run: echo "127.0.0.1 pgsql ldap minio" | sudo tee -a /etc/hosts
       - run: make deps-backend
-      - run: make backend
-        env:
-          TAGS: bindata
+      - name: Retrieve saved build result
+        uses: actions/download-artifact@v3
+        with:
+          name: build-artifact
+          path: gitea
       - run: make test-pgsql-migration test-pgsql
         timeout-minutes: 50
         env:
