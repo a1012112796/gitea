@@ -12,7 +12,7 @@ jobs:
     uses: ./.github/workflows/files-changed.yml
 
   lint-backend:
-    if: needs.files-changed.outputs.backend == 'true'
+    if: needs.files-changed.outputs.backend == 'true' || runner.skip_checkout == 'true' 
     needs: files-changed
     runs-on: ubuntu-latest
     steps:
@@ -27,7 +27,7 @@ jobs:
           TAGS: bindata sqlite sqlite_unlock_notify
 
   lint-go-windows:
-    if: needs.files-changed.outputs.backend == 'true'
+    if: needs.files-changed.outputs.backend == 'true' || runner.skip_checkout == 'true' 
     needs: files-changed
     runs-on: ubuntu-latest
     steps:
@@ -44,7 +44,7 @@ jobs:
           GOARCH: amd64
 
   lint-go-gogit:
-    if: needs.files-changed.outputs.backend == 'true'
+    if: needs.files-changed.outputs.backend == 'true' || runner.skip_checkout == 'true' 
     needs: files-changed
     runs-on: ubuntu-latest
     steps:
@@ -59,7 +59,7 @@ jobs:
           TAGS: bindata gogit sqlite sqlite_unlock_notify
 
   checks-backend:
-    if: needs.files-changed.outputs.backend == 'true'
+    if: needs.files-changed.outputs.backend == 'true' || runner.skip_checkout == 'true' 
     needs: files-changed
     runs-on: ubuntu-latest
     steps:
@@ -72,7 +72,7 @@ jobs:
       - run: make --always-make checks-backend # ensure the "go-licenses" make target runs
 
   frontend:
-    if: needs.files-changed.outputs.frontend == 'true'
+    if: needs.files-changed.outputs.frontend == 'true' || runner.skip_checkout == 'true' 
     needs: files-changed
     runs-on: ubuntu-latest
     steps:
@@ -85,7 +85,7 @@ jobs:
       - run: make checks-frontend
 
   backend:
-    if: needs.files-changed.outputs.backend == 'true'
+    if: needs.files-changed.outputs.backend == 'true' || runner.skip_checkout == 'true' 
     needs: files-changed
     runs-on: ubuntu-latest
     steps:
@@ -120,7 +120,7 @@ jobs:
           GOARCH: 386
 
   docs:
-    if: needs.files-changed.outputs.docs == 'true'
+    if: needs.files-changed.outputs.docs == 'true' || runner.skip_checkout == 'true' 
     needs: files-changed
     runs-on: ubuntu-latest
     steps:
@@ -133,7 +133,7 @@ jobs:
       - run: make docs # test if build could succeed
 
   actions:
-    if: needs.files-changed.outputs.actions == 'true'
+    if: needs.files-changed.outputs.actions == 'true' || runner.skip_checkout == 'true' 
     needs: files-changed
     runs-on: ubuntu-latest
     steps:
