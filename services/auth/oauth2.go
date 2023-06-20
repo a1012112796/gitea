@@ -26,27 +26,33 @@ var (
 )
 
 // CheckOAuthAccessToken returns uid of user from oauth token
-func CheckOAuthAccessToken(accessToken string) int64 {
+func CheckOAuthAccessToken(accessToken string) (int64, auth_model.AccessTokenScope) {
 	// JWT tokens require a "."
 	if !strings.Contains(accessToken, ".") {
-		return 0
+		return 0, auth_model.AccessTokenScopeNone
 	}
 	token, err := oauth2.ParseToken(accessToken, oauth2.DefaultSigningKey)
 	if err != nil {
 		log.Trace("oauth2.ParseToken: %v", err)
-		return 0
+		return 0, auth_model.AccessTokenScopeNone
 	}
 	var grant *auth_model.OAuth2Grant
 	if grant, err = auth_model.GetOAuth2GrantByID(db.DefaultContext, token.GrantID); err != nil || grant == nil {
-		return 0
+		return 0, auth_model.AccessTokenScopeNone
 	}
 	if token.Type != oauth2.TypeAccessToken {
-		return 0
+		return 0, auth_model.AccessTokenScopeNone
 	}
 	if token.ExpiresAt.Before(time.Now()) || token.IssuedAt.After(time.Now()) {
-		return 0
+		return 0, auth_model.AccessTokenScopeNone
 	}
-	return grant.UserID
+
+	scope, err := auth_model.AccessTokenScope(grant.Scope).Normalize()
+	if err != nil {
+		scope = auth_model.AccessTokenScopeNone
+	}
+
+	return grant.UserID, scope
 }
 
 // OAuth2 implements the Auth interface and authenticates requests
@@ -86,10 +92,10 @@ func (o *OAuth2) userIDFromToken(req *http.Request, store DataStore) int64 {
 
 	// Let's see if token is valid.
 	if strings.Contains(tokenSHA, ".") {
-		uid := CheckOAuthAccessToken(tokenSHA)
+		uid, scope := CheckOAuthAccessToken(tokenSHA)
 		if uid != 0 {
 			store.GetData()["IsApiToken"] = true
-			store.GetData()["ApiTokenScope"] = auth_model.AccessTokenScopeAll // fallback to all
+			store.GetData()["ApiTokenScope"] = scope // fallback to all
 		}
 		return uid
 	}

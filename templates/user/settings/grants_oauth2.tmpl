@@ -20,6 +20,9 @@
 				<div class="content">
 					<strong>{{$grant.Application.Name}}</strong>
 					<div class="activity meta">
+						{{if $grant.Scope}}
+							{{$.locale.Tr "auth.requested_scope"}}: {{$grant.Scope}},
+						{{end}}
 						<i>{{$.locale.Tr "settings.added_on" (DateTime "short" $grant.CreatedUnix) | Safe}}</i>
 					</div>
 				</div>

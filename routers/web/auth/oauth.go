@@ -143,6 +143,7 @@ type AccessTokenResponse struct {
 	ExpiresIn    int64     `json:"expires_in"`
 	RefreshToken string    `json:"refresh_token"`
 	IDToken      string    `json:"id_token,omitempty"`
+	Scope        string    `json:"scope,omitempty"`
 }
 
 func newAccessTokenResponse(ctx go_context.Context, grant *auth.OAuth2Grant, serverKey, clientKey oauth2.JWTSigningKey) (*AccessTokenResponse, *AccessTokenError) {
@@ -257,12 +258,15 @@ func newAccessTokenResponse(ctx go_context.Context, grant *auth.OAuth2Grant, ser
 		}
 	}
 
+	scope, _ := auth.AccessTokenScope(grant.Scope).Normalize()
+
 	return &AccessTokenResponse{
 		AccessToken:  signedAccessToken,
 		TokenType:    TokenTypeBearer,
 		ExpiresIn:    setting.OAuth2.AccessTokenExpirationTime,
 		RefreshToken: signedRefreshToken,
 		IDToken:      signedIDToken,
+		Scope:        string(scope),
 	}, nil
 }
 
@@ -497,7 +501,7 @@ func AuthorizeOAuth(ctx *context.Context) {
 	ctx.Data["Application"] = app
 	ctx.Data["RedirectURI"] = form.RedirectURI
 	ctx.Data["State"] = form.State
-	ctx.Data["Scope"] = form.Scope
+	ctx.Data["Scope"], ctx.Data["ScopeError"] = auth.AccessTokenScope(form.Scope).Normalize()
 	ctx.Data["Nonce"] = form.Nonce
 	if user != nil {
 		ctx.Data["ApplicationCreatorLinkHTML"] = fmt.Sprintf(`<a href="%s">@%s</a>`, html.EscapeString(user.HomeLink()), html.EscapeString(user.Name))

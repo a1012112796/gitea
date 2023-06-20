@@ -15,6 +15,17 @@
 			<div class="ui attached segment">
 				<p>{{.locale.Tr "auth.authorize_redirect_notice" .ApplicationRedirectDomainHTML | Str2html}}</p>
 			</div>
+			{{if .Scope}}
+				<div class="ui attached segment">
+					<p>{{.locale.Tr "auth.requested_scope"}}: {{.Scope}}</p>
+				</div>
+			{{end}}
+			{{if .ScopeError}}
+				<div class="ui attached segment gt-bg-yellow">
+					<p>{{.ScopeError}}</p>
+				</div>
+			{{end}}
+
 			<div class="ui attached segment">
 				<form method="post" action="{{AppSubUrl}}/login/oauth/grant">
 					{{.CsrfTokenHtml}}

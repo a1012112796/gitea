@@ -52,6 +52,7 @@ type AccessTokenScope string
 
 // for all categories, write implies read
 const (
+	AccessTokenScopeNone       AccessTokenScope = ""
 	AccessTokenScopeAll        AccessTokenScope = "all"
 	AccessTokenScopePublicOnly AccessTokenScope = "public-only" // limited to public orgs/repos
 
